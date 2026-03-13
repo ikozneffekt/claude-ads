@@ -57,11 +57,17 @@ commentary: Never silently fail. Check the env var directly — do NOT use --hel
    - `**Dimensions:**` line → WxH (e.g., `1080x1920`)
    - `**Safe zone notes:**` line → composition constraint to append to prompt
 
-3. **Read brand-profile.json** (if present): inject these values into every prompt:
-   - `colors.primary` → append `"brand color [hex] accents"`
-   - `aesthetic.mood_keywords` → append as atmosphere descriptors
-   - `imagery.forbidden` → prepend each with `"no "` (e.g., `"no corporate handshakes"`)
-   - `imagery.style` → confirm it's already in the prompt or add it
+3. **Read brand-profile.json** (if present):
+   - Extract `colors.primary`, `colors.background`, `aesthetic.mood_keywords`, `imagery.forbidden`
+   - Check `screenshots.homepage` — note the path for Step 3b below
+
+3b. **Check for brand reference screenshot**:
+   - If `brand-profile.json` has a `screenshots.homepage` field AND that file exists on disk:
+     - Set `REFERENCE_IMAGE = screenshots.homepage path`
+     - Log: `"Brand screenshot found — using style-reference generation (Nano Banana 2)"`
+   - If the field is absent or the file does not exist:
+     - Set `REFERENCE_IMAGE = None`
+     - Log: `"No brand screenshots — text-only generation. Run /ads dna to enable visual style matching."`
 
 4. **Read platform creative spec reference** for each platform in the brief:
    - `~/.claude/skills/ads/references/meta-creative-specs.md`
@@ -75,34 +81,107 @@ commentary: Never silently fail. Check the env var directly — do NOT use --hel
    ```
    Example: `./ad-assets/meta/pain-point-hook/feed-1080x1350.png`
 
-6. **Call generate_image.py** for each asset:
+5b. **Apply Prompt Preprocessing Rules** to every prompt before calling generate_image.py.
+    See the **Prompt Preprocessing Rules** section below.
+
+6. **Call generate_image.py twice per brief** (v1 and v2 for A/B testing):
+
+   **v1** — base preprocessed prompt:
    ```bash
    python ~/.claude/skills/ads/scripts/generate_image.py \
-     "[prompt with brand injection]" \
+     "[preprocessed prompt]" \
      --size [WxH] \
-     --output [path] \
+     --output [path]-v1.png \
+     [--reference-image REFERENCE_IMAGE]  # only if REFERENCE_IMAGE is set \
      --json
    ```
-   Parse the JSON output. Record `success`, `file`, `width`, `height`, `error` in the manifest.
+
+   **v2** — same prompt + ", alternative composition angle":
+   ```bash
+   python ~/.claude/skills/ads/scripts/generate_image.py \
+     "[preprocessed prompt], alternative composition angle" \
+     --size [WxH] \
+     --output [path]-v2.png \
+     [--reference-image REFERENCE_IMAGE]  # only if REFERENCE_IMAGE is set \
+     --json
+   ```
+
+   Output paths: `./ad-assets/[platform]/[concept-slug]/[format]-[WxH]-v1.png` and `-v2.png`
+   Parse each JSON output. Record both in the manifest.
 
 7. **Write generation-manifest.json** to the current directory after all generations complete.
 
+## Prompt Preprocessing Rules
+
+Apply ALL of these rules to every prompt before calling generate_image.py.
+These rules prevent hallucinated text and ensure clean copy zones.
+
+### Rule 1: Lead with brand colors
+Move colors to the VERY BEGINNING of the prompt — Gemini weights earlier tokens more heavily.
+Format: `"[colors.background] background, [colors.primary] accent glow, [rest of prompt]"`
+
+### Rule 2: Strip font name references
+Remove any font names (Noto Serif, Inter, Google Sans, Helvetica, etc.).
+Gemini cannot render specific fonts — they cause hallucinated/garbled text characters.
+
+### Rule 3: Replace specific UI text with abstract equivalents
+Remove any phrases that describe specific text labels, data values, column headers, or UI copy.
+- "SERP data labeled 'Traffic Analytics'" → "abstract SERP data visualization"
+- "dashboard showing keyword ranking" → "abstract dashboard silhouette with anonymous data"
+- "headline text reading X" → (remove entirely — copy is added by the ad platform)
+
+### Rule 4: Append hard no-text constraint to EVERY prompt
+Always append: `", no text, no labels, no readable words, no UI text, no data labels anywhere in image"`
+
+### Rule 5: Append platform-specific copy zone
+Append the constraint for the target platform:
+
+| Platform        | Append to prompt                                                          |
+|-----------------|---------------------------------------------------------------------------|
+| TikTok (9:16)   | `", active visual centered in middle 70%, top 15% and bottom 20% minimal"` |
+| Meta Feed (4:5) | `", primary visual in upper 65%, bottom 30% minimal for copy overlay"`     |
+| LinkedIn (1:1)  | `", centered composition with generous 20% margin all sides"`              |
+| Google PMax     | `", focal point left-center, right third lighter for text overlay"`        |
+| YouTube (16:9)  | `", main subject left-center, right 40% clean for copy overlay"`           |
+
+### Rule 6: Add brand mood injection (after rules above)
+Append: `", [mood_keywords joined by comma] atmosphere, no [forbidden joined by comma]"`
+
+### Rule 7: Cap at 80 words
+If preprocessed prompt exceeds 80 words, condense it.
+Keep: composition type, colors, abstract visual shapes, mood.
+Drop: specific subject details, redundant adjectives, decoration.
+
+### Example transformation
+
+**Before (from campaign-brief.md):**
+```
+Dark digital illustration, split composition, left half shows a glowing empty text editor
+on near-black background #09090B with a blinking cursor and no content, right half shows
+a sleek SEO dashboard UI with keyword ranking data, green #22C55E glowing rising chart
+lines and SERP data visualizations, bold typographic hierarchy with Noto Serif heading font,
+mood: intelligent precise powerful technical modern
+```
+
+**After (preprocessed):**
+```
+#09090B dark background, #22C55E accent glow, dark split-screen digital illustration,
+left: solitary blinking cursor in empty void, right: abstract SEO dashboard silhouette
+with anonymous rising data curve, stark contrast, no text, no labels, no readable words,
+no UI text, no data labels anywhere in image, primary visual in upper 65%,
+bottom 30% minimal for copy overlay, intelligent precise powerful technical modern
+atmosphere, no cheesy stock photos, no bright white backgrounds
+```
+
 ## Prompt Construction Rules
 
-Build the final prompt by combining:
-1. Base prompt from `**Prompt:**` in campaign-brief.md
-2. Brand color injection: `", brand color [colors.primary] accents"`
-3. Mood injection: `", [mood_keywords joined by comma] atmosphere"`
-4. Forbidden injection: `", no [forbidden joined by comma]"`
-5. Safe zone constraint from `**Safe zone notes:**` if not "None"
-
-Example final prompt:
-```
-"person using laptop in modern office, professional photography, clean background,
-brand color #1A2E4A accents, trustworthy modern approachable atmosphere,
-subject centered in top 60% of frame, bottom third is clear background,
-no corporate handshakes, no stock photo clichés"
-```
+Build the final preprocessed prompt by applying the Preprocessing Rules above in order:
+1. Start with: `"[colors.background] background, [colors.primary] accent glow"`
+2. Add: base description from `**Prompt:**` (stripped of font names and UI text)
+3. Add: `", no text, no labels, no readable words, no UI text, no data labels anywhere in image"`
+4. Add: platform copy zone constraint (Rule 5 table above)
+5. Add: `", [mood_keywords] atmosphere, no [forbidden joined by comma]"`
+6. Verify: total word count ≤ 80 — condense if needed
 
 ## generation-manifest.json Format
 
@@ -120,10 +199,12 @@ no corporate handshakes, no stock photo clichés"
       "platform": "meta",
       "format": "feed",
       "ratio": "4:5",
+      "variation": "v1",
       "width": 1080,
       "height": 1350,
-      "file": "./ad-assets/meta/pain-point-hook/feed-1080x1350.png",
-      "prompt": "full prompt used",
+      "file": "./ad-assets/meta/pain-point-hook/feed-1080x1350-v1.png",
+      "prompt": "full preprocessed prompt used",
+      "reference_image": "./brand-screenshots/example_com_desktop.png",
       "generation_success": true,
       "error": null
     }
@@ -142,11 +223,15 @@ no corporate handshakes, no stock photo clichés"
 
 After all generations, report to the user:
 ```
-Generated [N] ad assets:
-  ✓ ./ad-assets/meta/concept-1/feed-1080x1350.png (1080×1350)
-  ✓ ./ad-assets/tiktok/concept-1/vertical-1080x1920.png (1080×1920)
-  ✗ ./ad-assets/google/concept-1/landscape-1200x628.png — ERROR: [reason]
+Generated [N] ad assets ([N/2] briefs × 2 A/B variations):
+  ✓ ./ad-assets/meta/concept-1/feed-1080x1350-v1.png (1080×1350) [style-ref: Nano Banana 2]
+  ✓ ./ad-assets/meta/concept-1/feed-1080x1350-v2.png (1080×1350) [alternative composition]
+  ✓ ./ad-assets/tiktok/concept-1/vertical-1080x1920-v1.png (1080×1920)
+  ✗ ./ad-assets/google/concept-1/landscape-1200x628-v1.png — ERROR: [reason]
 
-Next: Run `/ads generate` format-adapter to validate dimensions and check safe zones.
+A/B variants: Upload both v1 and v2 to your ad platform — run them head-to-head to find the better performer.
+Reference: [Brand screenshot used / Text-only generation]
+
+Next: Run format-adapter to validate dimensions and check safe zones.
 See generation-manifest.json for full details.
 ```

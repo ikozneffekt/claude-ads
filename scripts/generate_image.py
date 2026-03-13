@@ -12,6 +12,7 @@ Usage:
     python generate_image.py "prompt text" --size 1200x628 --output landscape.png
     python generate_image.py --batch prompts.json --output-dir ./ad-assets/
     python generate_image.py --model gemini-3.1-flash-image-preview "prompt" --ratio 1:1  # preview upgrade
+    python generate_image.py "prompt" --ratio 4:5 --reference-image ./brand-screenshots/homepage_desktop.png  # style reference
 
 Environment variables:
     ADS_IMAGE_PROVIDER   Provider to use: gemini (default), openai, stability, replicate
@@ -144,8 +145,15 @@ def _dims_from_ratio(ratio: str) -> tuple[int, int]:
     sys.exit(1)
 
 
-def generate_gemini(prompt: str, width: int, height: int, api_key: str, model: str) -> bytes:
-    """Generate image using Gemini API (google-genai package)."""
+def generate_gemini(prompt: str, width: int, height: int, api_key: str, model: str, reference_image_path: str | None = None) -> bytes:
+    """Generate image using Gemini API (google-genai package).
+
+    Args:
+        reference_image_path: Optional path to a brand screenshot for style-guided
+            generation. When provided, the image is passed as a visual style reference
+            alongside the text prompt. Best used with gemini-3.1-flash-image-preview
+            (Nano Banana 2) which has enhanced style-transfer capabilities.
+    """
     try:
         from google import genai
         from google.genai import types
@@ -167,11 +175,25 @@ def generate_gemini(prompt: str, width: int, height: int, api_key: str, model: s
 
     client = genai.Client(api_key=api_key)
 
+    # Build contents — with optional brand reference image for style guidance
+    if reference_image_path and os.path.exists(reference_image_path):
+        with open(reference_image_path, 'rb') as f:
+            ref_bytes = f.read()
+        mime = 'image/png' if reference_image_path.lower().endswith('.png') else 'image/jpeg'
+        ref_part = types.Part.from_bytes(data=ref_bytes, mime_type=mime)
+        contents = [
+            ref_part,
+            f"Generate an ad creative that matches the visual style, color palette, "
+            f"and aesthetic of the brand shown in the reference image. {prompt}"
+        ]
+    else:
+        contents = prompt
+
     for attempt in range(MAX_RETRIES):
         try:
             response = client.models.generate_content(
                 model=model,
-                contents=prompt,
+                contents=contents,
                 config=types.GenerateContentConfig(
                     response_modalities=["IMAGE"],
                     image_config=types.ImageConfig(
@@ -303,6 +325,7 @@ def generate_image(
     provider: str,
     model: str | None,
     api_key: str,
+    reference_image_path: str | None = None,
 ) -> tuple[bytes, int, int]:
     """
     Generate a single image. Returns (image_bytes, width, height).
@@ -310,8 +333,28 @@ def generate_image(
     width, height = _dims_from_ratio(ratio)
 
     if provider == "gemini":
-        model = model or DEFAULT_MODEL_GEMINI
-        image_bytes = generate_gemini(prompt, width, height, api_key, model)
+        # Auto-upgrade to Nano Banana 2 (gemini-3.1-flash-image-preview) for
+        # reference-guided generation — it has better visual style-transfer capability
+        if not model and reference_image_path and os.path.exists(reference_image_path):
+            preview_model = "gemini-3.1-flash-image-preview"
+            try:
+                image_bytes = generate_gemini(prompt, width, height, api_key, preview_model, reference_image_path)
+                model = preview_model
+            except Exception as preview_err:
+                err_str = str(preview_err)
+                if any(code in err_str for code in ("404", "NOT_FOUND", "invalid_argument", "not found")):
+                    print(
+                        f"Warning: {preview_model} unavailable ({err_str[:80]}). "
+                        f"Falling back to {DEFAULT_MODEL_GEMINI} (text-only, no style reference).",
+                        file=sys.stderr,
+                    )
+                    model = DEFAULT_MODEL_GEMINI
+                    image_bytes = generate_gemini(prompt, width, height, api_key, model, None)
+                else:
+                    raise  # rate limit, safety filter, auth errors — re-raise as normal
+        else:
+            model = model or DEFAULT_MODEL_GEMINI
+            image_bytes = generate_gemini(prompt, width, height, api_key, model, reference_image_path)
     elif provider == "openai":
         model = model or DEFAULT_MODEL_OPENAI
         image_bytes = generate_openai(prompt, width, height, api_key, model)
@@ -355,6 +398,7 @@ def run_batch(batch_file: str, output_dir: str, provider: str, model: str | None
         ratio = job.get("ratio", "1:1")
         output_name = job.get("output", f"image_{i:03d}.png")
         output_path = str(Path(output_dir) / output_name)
+        reference_image = job.get("reference_image", None)
 
         result = {
             "index": i,
@@ -368,7 +412,7 @@ def run_batch(batch_file: str, output_dir: str, provider: str, model: str | None
 
         try:
             print(f"[{i+1}/{len(jobs)}] Generating {output_name}...", file=sys.stderr)
-            image_bytes, width, height = generate_image(prompt, ratio, provider, model, api_key)
+            image_bytes, width, height = generate_image(prompt, ratio, provider, model, api_key, reference_image)
             with open(output_path, "wb") as out:
                 out.write(image_bytes)
             result["generation_success"] = True
@@ -443,6 +487,13 @@ Set ADS_IMAGE_PROVIDER to switch providers: gemini (default), openai, stability,
         default=None,
         help="Model name override (e.g. gemini-3.1-flash-image-preview). Defaults to provider's current default.",
     )
+    parser.add_argument(
+        "--reference-image", "-i",
+        metavar="FILE",
+        dest="reference_image",
+        help="Path to brand reference image for style guidance (Gemini only). "
+             "Auto-selects gemini-3.1-flash-image-preview for better style transfer.",
+    )
 
     # Output format
     parser.add_argument("--json", "-j", action="store_true", help="Output result as JSON")
@@ -467,7 +518,7 @@ Set ADS_IMAGE_PROVIDER to switch providers: gemini (default), openai, stability,
         output_path = f"ad_{safe_ratio}.png"
 
     try:
-        image_bytes, width, height = generate_image(args.prompt, ratio, provider, args.model, api_key)
+        image_bytes, width, height = generate_image(args.prompt, ratio, provider, args.model, api_key, args.reference_image)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -485,6 +536,7 @@ Set ADS_IMAGE_PROVIDER to switch providers: gemini (default), openai, stability,
         "height": height,
         "ratio": ratio,
         "prompt": args.prompt,
+        "reference_image": args.reference_image,
     }
 
     if args.json:

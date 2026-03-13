@@ -115,13 +115,46 @@ The `## Image Generation Briefs` section is parsed programmatically by the visua
 **Safe zone notes:** [text or "None"]
 ```
 
-Each brief prompt must include:
-- Subject description
-- Brand primary color from `colors.primary` in brand-profile.json
-- Imagery style from `imagery.style`
-- Mood from `aesthetic.mood_keywords`
-- Composition guidance (safe zone awareness)
-- Negative elements from `imagery.forbidden` prefixed with "no"
+### Quality Rules for Every **Prompt:** Line
 
-Example brief prompt:
-`"person using laptop in modern office, professional photography, brand color #1A2E4A accents, trustworthy modern approachable atmosphere, subject centered in safe zone, horizontal composition, no corporate handshakes, no stock photo clichés"`
+**DO — include these:**
+- Composition type: split-screen, diagonal, centered, full-bleed, stacked
+- Abstract data shapes: rising curve, ascending bars, glowing line arc, pulse wave
+- Colors by hex: `#09090B background`, `#22C55E glow`, `#FFFFFF accent`
+- Mood atmosphere: dark technical precision, minimal authority, stark contrast
+- Visual metaphor (not literal): empty void vs. data richness, flat line vs. explosive growth
+- Imagery style from `brand-profile.json imagery.style`
+
+**DO NOT — these cause hallucinated text:**
+- Font names of any kind (`Noto Serif`, `Inter`, `Helvetica`, etc.)
+- Specific text labels, data values, column/row content
+- Phrases like "text reading X", "headline saying Y", "label showing Z"
+- "Dashboard with columns showing [data]" — use "abstract dashboard silhouette" instead
+- More than 80 words total
+
+**Always specify a copy zone** (where the ad headline/CTA will be placed):
+
+| Platform        | Copy zone statement to include in prompt                              |
+|-----------------|-----------------------------------------------------------------------|
+| TikTok (9:16)   | `"top 15% and bottom 20% minimal, active visual centered"`           |
+| Meta Feed (4:5) | `"lower 30% minimal and uncluttered for copy overlay"`               |
+| LinkedIn (1:1)  | `"generous margin all sides, centered composition"`                  |
+| Google PMax     | `"right third lighter and open for Google's text overlay"`           |
+| YouTube (16:9)  | `"right 40% minimal for caption/copy overlay"`                       |
+
+### Examples
+
+**BAD prompt (will hallucinate "KEYWORISNG" style garble):**
+```
+sleek SEO dashboard UI with keyword ranking data, bold typographic hierarchy with
+Noto Serif heading font, SERP data visualizations labeled 'Traffic Analytics',
+brand color #22C55E glowing chart lines
+```
+
+**GOOD prompt (clean generation, copy zone reserved):**
+```
+#09090B dark background, #22C55E accent glow, dark split-screen digital illustration,
+left: solitary blinking cursor in empty void, right: abstract dashboard silhouette
+with anonymous rising data curve, stark contrast, lower 30% minimal for copy overlay,
+dark mode digital illustration style, no cheesy stock photos
+```

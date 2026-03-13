@@ -45,6 +45,31 @@ Fetch in this order:
 If a secondary page returns a 404 or redirect error, continue with fewer pages and note:
 "Secondary pages unavailable — extraction based on homepage only. Confidence may be lower."
 
+### Step 2b: Capture Brand Screenshots
+
+After fetching pages, capture desktop screenshots of the website. These serve as
+visual style references during `/ads generate` — the same approach Pomelli uses
+to anchor ad images to the actual brand aesthetic.
+
+Run for the homepage:
+```bash
+python ~/.claude/skills/ads/scripts/capture_screenshot.py [url]
+```
+
+This saves `./brand-screenshots/[domain]_desktop.png` (default naming from the script).
+
+Also attempt one secondary page (pricing or product page, whichever was accessible):
+```bash
+python ~/.claude/skills/ads/scripts/capture_screenshot.py [url]/pricing
+```
+
+**If `--quick` flag was provided**: skip screenshot capture entirely.
+
+**If capture fails** (Playwright not installed, network error, JS-heavy SPA that times out):
+- Log: `"Screenshot capture skipped — run: python3 -m playwright install chromium"`
+- Continue without screenshots
+- Do NOT set the `screenshots` field in brand-profile.json
+
 ### Step 3: Extract Brand Elements
 
 From the fetched HTML, extract:
@@ -107,6 +132,15 @@ Example of a low-confidence field:
 Write the JSON to `./brand-profile.json` in the current working directory
 (where the user is running Claude Code).
 
+If screenshots were captured successfully in Step 2b, include a `screenshots` field:
+```json
+"screenshots": {
+  "homepage": "./brand-screenshots/[domain]_desktop.png",
+  "secondary": ["./brand-screenshots/[domain]_pricing_desktop.png"]
+}
+```
+Omit the `screenshots` field entirely if Step 2b was skipped or failed.
+
 ### Step 6: Confirm and Summarize
 
 Show the user:
@@ -119,6 +153,7 @@ Brand DNA Summary:
   Primary Color: [hex]
   Typography: [heading_font] / [body_font]
   Target: [age_range] [profession]
+  Screenshots: [N captured → ./brand-screenshots/] OR [skipped]
 
 Run `/ads create` to generate campaign concepts from this profile.
 ```

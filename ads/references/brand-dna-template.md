@@ -63,6 +63,11 @@ consume brand data must use these exact field names and value types.
     "profession":  "marketing managers and small business owners",
     "pain_points": ["time-consuming reporting", "unclear ROI"],
     "aspirations": ["grow efficiently", "look professional"]
+  },
+
+  "screenshots": {
+    "homepage":  "./brand-screenshots/example_com_desktop.png",
+    "secondary": ["./brand-screenshots/example_com_pricing_desktop.png"]
   }
 }
 ```
@@ -114,6 +119,16 @@ Used by `copy-writer` agent for tone calibration. Not injected into image prompt
 - `mood_keywords`: Injected directly into generation prompts as atmosphere descriptors.
 - `texture`: Passed as texture preference.
 - `negative_space`: "generous" → "plenty of white space, uncluttered composition".
+
+### Screenshots (optional — populated by `/ads dna`)
+
+- `homepage`: Desktop screenshot of homepage. **Primary visual style reference** for
+  `visual-designer` agent. When present, generation auto-uses `gemini-3.1-flash-image-preview`
+  (Nano Banana 2) for better brand style-transfer.
+- `secondary`: Additional pages (pricing, about, product). Supplemental context.
+- **If field absent**: `visual-designer` falls back to text-only generation (`gemini-2.5-flash-image`).
+- **If field present but file missing on disk**: `visual-designer` logs a warning and falls back gracefully.
+- Set by `ads-dna` Step 2b. Omitted entirely if screenshot capture failed or `--quick` was used.
 
 ---
 

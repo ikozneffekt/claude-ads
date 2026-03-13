@@ -77,6 +77,27 @@ function Main {
             Copy-Item "$TempDir\claude-ads\requirements.txt" -Destination "$SkillDir\requirements.txt" -Force
         }
 
+        # Install Python dependencies (required for /ads generate, /ads dna screenshots)
+        Write-Host ""
+        Write-Host "Installing Python dependencies..."
+        $ErrorActionPreference = "Continue"
+        pip install -q -r "$SkillDir\requirements.txt" 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  OK Python dependencies installed" -ForegroundColor Green
+        } else {
+            Write-Host "  Warning: pip install failed. Run manually: pip install -r $SkillDir\requirements.txt" -ForegroundColor Yellow
+        }
+
+        # Install Chromium for brand screenshot capture (/ads dna visual scan)
+        Write-Host "Installing Chromium for brand screenshots..."
+        python -m playwright install chromium 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  OK Chromium ready (brand screenshots enabled)" -ForegroundColor Green
+        } else {
+            Write-Host "  Warning: Playwright install failed. Fix: python -m playwright install chromium" -ForegroundColor Yellow
+        }
+        $ErrorActionPreference = "Stop"
+
         Write-Host ""
         Write-Host "Claude Ads installed successfully!" -ForegroundColor Green
         Write-Host ""

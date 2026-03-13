@@ -63,6 +63,26 @@ main() {
         cp "${TEMP_DIR}/claude-ads/requirements.txt" "${SKILL_DIR}/requirements.txt"
     fi
 
+    # Install Python dependencies (required for /ads generate, /ads dna screenshots)
+    echo ""
+    echo "→ Installing Python dependencies..."
+    if command -v pip3 >/dev/null 2>&1 || command -v pip >/dev/null 2>&1; then
+        PIP_CMD="pip3"
+        command -v pip3 >/dev/null 2>&1 || PIP_CMD="pip"
+        ${PIP_CMD} install --break-system-packages -q -r "${SKILL_DIR}/requirements.txt" 2>/dev/null \
+            || ${PIP_CMD} install -q -r "${SKILL_DIR}/requirements.txt" 2>/dev/null \
+            && echo "  ✓ Python dependencies installed" \
+            || echo "  ⚠ pip install failed — run manually: pip3 install -r ${SKILL_DIR}/requirements.txt"
+
+        # Install Chromium for brand screenshot capture (/ads dna visual scan)
+        echo "→ Installing Chromium for brand screenshots..."
+        python3 -m playwright install chromium --with-deps 2>/dev/null \
+            && echo "  ✓ Chromium ready (brand screenshots enabled)" \
+            || echo "  ⚠ Playwright install failed — fix: python3 -m playwright install chromium"
+    else
+        echo "  ⚠ pip not found — install deps manually: pip3 install -r ${SKILL_DIR}/requirements.txt"
+    fi
+
     echo ""
     echo "✓ Claude Ads installed successfully!"
     echo ""
