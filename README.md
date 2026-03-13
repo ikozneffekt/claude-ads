@@ -1,13 +1,30 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Claude Ads" width="100%">
+  <img src="assets/banner.png" alt="Claude Ads — Paid Advertising Audit Skill for Claude Code" width="100%">
 </p>
 
-# Claude Ads
+# Claude Ads — Paid Advertising Audit Skill for Claude Code
 
 Comprehensive paid advertising audit and optimization skill for Claude Code. Covers Google Ads, Meta Ads, YouTube Ads, LinkedIn Ads, TikTok Ads, Microsoft Ads, and Apple Search Ads with 190+ audit checks, industry-specific templates, and parallel subagent delegation.
 
 [![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-Skill-blue)](https://claude.ai/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Version](https://img.shields.io/github/v/release/AgriciDaniel/claude-ads)](https://github.com/AgriciDaniel/claude-ads/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/AgriciDaniel/claude-ads/ci.yml?branch=main&label=CI)](https://github.com/AgriciDaniel/claude-ads/actions)
+
+## Contents
+
+- [Installation](#installation)
+- [Demo](#demo)
+- [Quick Start](#quick-start)
+- [Commands](#commands)
+- [Features](#features)
+- [Architecture](#architecture)
+- [How It Analyzes Your Ads](#how-it-analyzes-your-ads)
+- [FAQ](#faq)
+- [Requirements](#requirements)
+- [Uninstall](#uninstall)
+- [Related Projects](#related-projects)
+- [License](#license)
 
 ## Installation
 

@@ -8,6 +8,8 @@ If you discover a security vulnerability, please report it responsibly:
 2. Open a [GitHub Security Advisory](https://github.com/AgriciDaniel/claude-ads/security/advisories/new) on this repo
 3. Or contact the maintainer directly
 
+We aim to acknowledge reports within **48 hours** and provide an estimated resolution timeline within **7 days**.
+
 ## Supported Versions
 
 Only the latest version receives security updates.
